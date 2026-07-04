@@ -1,4 +1,11 @@
-use std::{fmt::Display, str::FromStr};
+use std::{
+    fmt::Display,
+    num::ParseFloatError,
+    str::{FromStr, ParseBoolError},
+};
+
+use serde::Serialize;
+use thiserror::Error;
 
 use crate::{
     device::{WValue, WValueReadable, WValueWritable},
@@ -103,7 +110,7 @@ const OFFSET_MIC_MIX: usize = 12;
 const OFFSET_VOLUME_SELECT: usize = 14;
 const OFFSET_LOW_IMPEDANCE: usize = 33;
 
-#[derive(Debug, PartialEq, Eq, Default, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Default, PartialOrd, Ord, Clone, Copy, Serialize)]
 pub enum VolumeSelectMode {
     #[default]
     Gain,
@@ -244,4 +251,174 @@ impl WValueWritable for Config {
     fn wave_buffer(&self) -> &[u8] {
         self.buffer()
     }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ConfigProperty {
+    Mute,
+    Gain,
+    HeadphoneVolume,
+    LowImpedance,
+    VolumeSelectMode,
+    MicMix,
+}
+
+impl Display for ConfigProperty {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
+impl ConfigProperty {
+    pub fn name(&self) -> &str {
+        match self {
+            ConfigProperty::Mute => "mute",
+            ConfigProperty::Gain => "gain",
+            ConfigProperty::HeadphoneVolume => "headphone-volume",
+            ConfigProperty::LowImpedance => "low-impedance",
+            ConfigProperty::VolumeSelectMode => "volume-select-mode",
+            ConfigProperty::MicMix => "mic-mix",
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+#[error("unknown config property field")]
+pub struct UnknownConfigPropertyError;
+
+impl FromStr for ConfigProperty {
+    type Err = UnknownConfigPropertyError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "mute" => ConfigProperty::Mute,
+            "gain" => ConfigProperty::Gain,
+            "headphone-volume" => ConfigProperty::HeadphoneVolume,
+            "low-impedance" => ConfigProperty::LowImpedance,
+            "volume-select-mode" => ConfigProperty::VolumeSelectMode,
+            "mic-mix" => ConfigProperty::MicMix,
+            _ => return Err(UnknownConfigPropertyError),
+        })
+    }
+}
+
+impl ConfigProperty {
+    pub const ALL: &[ConfigProperty] = &[
+        ConfigProperty::Mute,
+        ConfigProperty::Gain,
+        ConfigProperty::HeadphoneVolume,
+        ConfigProperty::LowImpedance,
+        ConfigProperty::VolumeSelectMode,
+        ConfigProperty::MicMix,
+    ];
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub enum ConfigPropertyValue {
+    Float(f32),
+    Boolean(bool),
+    VolumeSelectMode(VolumeSelectMode),
+}
+
+#[derive(Debug, Error)]
+pub enum ConfigPropertyError {
+    #[error(transparent)]
+    ParseBoolean(#[from] ParseBoolError),
+
+    #[error(transparent)]
+    ParseFloat(#[from] ParseFloatError),
+
+    #[error(transparent)]
+    VolumeSelectMode(#[from] InvalidVolumeSelectMode),
+}
+
+impl ConfigPropertyValue {
+    pub fn parse_for_property(
+        property: ConfigProperty,
+        value: String,
+    ) -> Result<ConfigPropertyValue, ConfigPropertyError> {
+        Ok(match property {
+            ConfigProperty::Mute | ConfigProperty::LowImpedance => {
+                let value: bool = value.parse()?;
+                ConfigPropertyValue::Boolean(value)
+            }
+            ConfigProperty::Gain | ConfigProperty::HeadphoneVolume | ConfigProperty::MicMix => {
+                let value: f32 = value.parse()?;
+                ConfigPropertyValue::Float(value)
+            }
+            ConfigProperty::VolumeSelectMode => {
+                let value: VolumeSelectMode = value.parse()?;
+                ConfigPropertyValue::VolumeSelectMode(value)
+            }
+        })
+    }
+}
+
+impl Display for ConfigPropertyValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConfigPropertyValue::Float(value) => value.fmt(f),
+            ConfigPropertyValue::Boolean(value) => value.fmt(f),
+            ConfigPropertyValue::VolumeSelectMode(value) => value.fmt(f),
+        }
+    }
+}
+
+impl From<f32> for ConfigPropertyValue {
+    fn from(value: f32) -> Self {
+        Self::Float(value)
+    }
+}
+
+impl From<bool> for ConfigPropertyValue {
+    fn from(value: bool) -> Self {
+        Self::Boolean(value)
+    }
+}
+
+impl From<VolumeSelectMode> for ConfigPropertyValue {
+    fn from(value: VolumeSelectMode) -> Self {
+        Self::VolumeSelectMode(value)
+    }
+}
+
+pub fn read_config_property(config: &Config, property: ConfigProperty) -> ConfigPropertyValue {
+    match property {
+        ConfigProperty::Mute => config.get_mute().into(),
+        ConfigProperty::Gain => config.get_gain().into(),
+        ConfigProperty::HeadphoneVolume => config.get_headphone_volume().into(),
+        ConfigProperty::LowImpedance => config.get_low_impedance().into(),
+        ConfigProperty::VolumeSelectMode => config.get_volume_select_mode().into(),
+        ConfigProperty::MicMix => config.get_mic_mix().into(),
+    }
+}
+
+#[derive(Debug, Error)]
+#[error("unsupported property value combination")]
+pub struct UnsupportedValueCombination;
+
+pub fn write_config_property(
+    config: &mut Config,
+    property: ConfigProperty,
+    value: ConfigPropertyValue,
+) -> Result<(), UnsupportedValueCombination> {
+    match (property, value) {
+        (ConfigProperty::Mute, ConfigPropertyValue::Boolean(value)) => config.set_mute(value),
+        (ConfigProperty::Gain, ConfigPropertyValue::Float(value)) => config.set_gain(value),
+        (ConfigProperty::HeadphoneVolume, ConfigPropertyValue::Float(value)) => {
+            config.set_headphone_volume(value);
+        }
+        (ConfigProperty::LowImpedance, ConfigPropertyValue::Boolean(value)) => {
+            config.set_low_impedance(value);
+        }
+        (ConfigProperty::VolumeSelectMode, ConfigPropertyValue::VolumeSelectMode(value)) => {
+            config.set_volume_select_mode(value);
+        }
+        (ConfigProperty::MicMix, ConfigPropertyValue::Float(value)) => config.set_mic_mix(value),
+
+        _ => return Err(UnsupportedValueCombination),
+    }
+
+    Ok(())
 }

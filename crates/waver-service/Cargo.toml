@@ -1,15 +1,16 @@
 [package]
-name = "waver-core"
+name = "waver-service"
 version = "0.1.0"
 edition = "2024"
-dist = false
+description = "Background service for storing the Wave XLR settings on linux."
 readme = "../../README.md"
 license = "MIT"
 authors = ["Jacobtread <jacobtread@gmail.com>"]
 homepage = "https://github.com/jacobtread/waver"
 repository = "https://github.com/jacobtread/waver"
 
+
 [dependencies]
-rusb = "0.9.4"
-thiserror = "2.0.18"
-serde = { version = "1", features = ["derive"] }
+anyhow = "1"
+indexmap = "2.14.0"
+waver-core = { path = "../waver-core", version = "0.1.0" }

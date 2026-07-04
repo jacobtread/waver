@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/waver-core", "crates/waver-cli"]
+members = ["crates/waver-core", "crates/waver-cli", "crates/waver-service"]
 
 # The profile that 'dist' will build with
 [profile.dist]

@@ -1,3 +1,5 @@
+use std::string::FromUtf8Error;
+
 use crate::device::{WValue, WValueReadable, WValueWritable};
 
 const BUFFER_LENGTH: usize = 51;
@@ -67,7 +69,7 @@ impl DeviceInfo {
         (major, minor, patch)
     }
 
-    pub fn serial_number(&self) -> anyhow::Result<String> {
+    pub fn serial_number(&self) -> Result<String, FromUtf8Error> {
         let bytes = self.buffer.read_slice(35, 14);
         let value = String::from_utf8(bytes.to_vec())?;
 

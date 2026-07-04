@@ -1,7 +1,6 @@
-use std::time::Duration;
-
-use anyhow::Context;
 use rusb::{DeviceHandle, UsbContext};
+use std::time::Duration;
+use thiserror::Error;
 
 const VENDOR_ID: u16 = 0x0FD9;
 const PRODUCT_ID: u16 = 0x007D;
@@ -36,17 +35,42 @@ pub trait WValueWritable: WValue {
     fn wave_buffer(&self) -> &[u8];
 }
 
+#[derive(Debug, Error)]
+pub enum WaveError {
+    #[error(transparent)]
+    Usb(#[from] rusb::Error),
+
+    #[error("failed to open device handle")]
+    OpenHandleFailed,
+
+    #[error("expected {0} bytes but only got {1}")]
+    InvalidResponseLength(usize, usize),
+}
+
+impl WaveError {
+    pub fn is_disconnected(&self) -> bool {
+        match self {
+            WaveError::Usb(error) => matches!(
+                error,
+                rusb::Error::Io | rusb::Error::NoDevice | rusb::Error::Pipe
+            ),
+            _ => false,
+        }
+    }
+}
+
 impl WaveXLRDevice {
     /// Connect to the Wave XLR device
-    pub fn connect() -> anyhow::Result<Self> {
+    pub fn connect() -> Result<Self, WaveError> {
         let context = rusb::Context::new()?;
         let handle = context
             .open_device_with_vid_pid(VENDOR_ID, PRODUCT_ID)
-            .context("failed to open device handle")?;
+            .ok_or(WaveError::OpenHandleFailed)?;
+
         Ok(Self { handle })
     }
 
-    fn ctrl_read(&mut self, w_value: u16, buffer: &mut [u8]) -> Result<usize, rusb::Error> {
+    fn ctrl_read(&mut self, w_value: u16, buffer: &mut [u8]) -> Result<usize, WaveError> {
         let request_type = rusb::request_type(
             rusb::Direction::In,
             rusb::RequestType::Class,
@@ -65,7 +89,7 @@ impl WaveXLRDevice {
         Ok(bytes_read)
     }
 
-    fn ctrl_write(&mut self, w_value: u16, data: &[u8]) -> Result<(), rusb::Error> {
+    fn ctrl_write(&mut self, w_value: u16, data: &[u8]) -> Result<(), WaveError> {
         // Construct wRequestType matching Python's RT_CLASS_OUT (0x21)
         let request_type = rusb::request_type(
             rusb::Direction::Out,
@@ -86,23 +110,19 @@ impl WaveXLRDevice {
     }
 
     /// Read a readable WValue from the device
-    pub fn read<R: WValueReadable>(&mut self) -> anyhow::Result<R> {
+    pub fn read<R: WValueReadable>(&mut self) -> Result<R, WaveError> {
         let mut readable = R::default();
         let buffer = readable.wave_buffer_mut();
         let bytes_read = self.ctrl_read(R::VALUE, buffer)?;
-
-        anyhow::ensure!(
-            !R::REQUIRE_EXACT || bytes_read == buffer.len(),
-            "expected {} bytes but only got {}",
-            buffer.len(),
-            bytes_read
-        );
+        if R::REQUIRE_EXACT && bytes_read != buffer.len() {
+            return Err(WaveError::InvalidResponseLength(buffer.len(), bytes_read));
+        }
 
         Ok(readable)
     }
 
     /// Write a writable WValue to the device
-    pub fn write<W: WValueWritable>(&mut self, value: &W) -> anyhow::Result<()> {
+    pub fn write<W: WValueWritable>(&mut self, value: &W) -> Result<(), WaveError> {
         self.ctrl_write(W::VALUE, value.wave_buffer())?;
         Ok(())
     }

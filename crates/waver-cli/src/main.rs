@@ -1,10 +1,10 @@
-use std::{fmt::Display, str::FromStr};
-
-use anyhow::Context;
 use clap::{Parser, Subcommand, ValueEnum};
 use indexmap::IndexMap;
 use serde::Serialize;
-use waver_core::{Config, DeviceInfo, Meters, VolumeSelectMode, WaveXLRDevice};
+use waver_core::{
+    Config, ConfigProperty, ConfigPropertyValue, DeviceInfo, Meters, WaveXLRDevice,
+    read_config_property, write_config_property,
+};
 
 /// Simple tool for working with the Wave XLR over USB
 #[derive(Parser, Debug)]
@@ -34,13 +34,13 @@ enum Commands {
     ReadConfig {
         /// Specific property to get the value of
         #[arg(short, long, value_enum)]
-        property: ConfigProperty,
+        property: CliConfigProperty,
     },
     /// Read a config value from the device
     WriteConfig {
         /// Property to write to
         #[arg(short, long, value_enum)]
-        property: ConfigProperty,
+        property: CliConfigProperty,
         /// Value to write to the property
         #[arg(short, long)]
         value: String,
@@ -59,7 +59,7 @@ pub struct ConfigValueJson {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum ConfigProperty {
+pub enum CliConfigProperty {
     Mute,
     Gain,
     HeadphoneVolume,
@@ -68,133 +68,28 @@ pub enum ConfigProperty {
     MicMix,
 }
 
-impl Serialize for ConfigProperty {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let possible_value = self
-            .to_possible_value()
-            .expect("should always have a possible value");
-        let name = possible_value.get_name();
-        name.serialize(serializer)
-    }
-}
-
-impl ConfigProperty {
-    const ALL: &[ConfigProperty] = &[
-        ConfigProperty::Mute,
-        ConfigProperty::Gain,
-        ConfigProperty::HeadphoneVolume,
-        ConfigProperty::LowImpedance,
-        ConfigProperty::VolumeSelectMode,
-        ConfigProperty::MicMix,
-    ];
-}
-
-#[derive(Debug, Serialize, Clone)]
-#[serde(untagged)]
-enum ConfigPropertyValue {
-    Float(f32),
-    Boolean(bool),
-    String(String),
-}
-
-impl ConfigPropertyValue {
-    pub fn parse_for_property(
-        property: ConfigProperty,
-        value: String,
-    ) -> anyhow::Result<ConfigPropertyValue> {
-        Ok(match property {
-            ConfigProperty::Mute | ConfigProperty::LowImpedance => {
-                let value: bool = value.parse()?;
-                ConfigPropertyValue::Boolean(value)
-            }
-            ConfigProperty::Gain | ConfigProperty::HeadphoneVolume | ConfigProperty::MicMix => {
-                let value: f32 = value.parse()?;
-                ConfigPropertyValue::Float(value)
-            }
-            ConfigProperty::VolumeSelectMode => ConfigPropertyValue::String(value),
-        })
-    }
-}
-
-impl Display for ConfigPropertyValue {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ConfigPropertyValue::Float(value) => value.fmt(f),
-            ConfigPropertyValue::Boolean(value) => value.fmt(f),
-            ConfigPropertyValue::String(value) => value.fmt(f),
+impl From<CliConfigProperty> for ConfigProperty {
+    fn from(value: CliConfigProperty) -> Self {
+        match value {
+            CliConfigProperty::Mute => ConfigProperty::Mute,
+            CliConfigProperty::Gain => ConfigProperty::Gain,
+            CliConfigProperty::HeadphoneVolume => ConfigProperty::HeadphoneVolume,
+            CliConfigProperty::LowImpedance => ConfigProperty::LowImpedance,
+            CliConfigProperty::VolumeSelectMode => ConfigProperty::VolumeSelectMode,
+            CliConfigProperty::MicMix => ConfigProperty::MicMix,
         }
     }
 }
 
-impl From<f32> for ConfigPropertyValue {
-    fn from(value: f32) -> Self {
-        Self::Float(value)
-    }
-}
-
-impl From<bool> for ConfigPropertyValue {
-    fn from(value: bool) -> Self {
-        Self::Boolean(value)
-    }
-}
-
-impl From<String> for ConfigPropertyValue {
-    fn from(value: String) -> Self {
-        Self::String(value)
-    }
-}
-
-fn read_config_property(
-    config: &Config,
-    property: ConfigProperty,
-) -> anyhow::Result<ConfigPropertyValue> {
-    Ok(match property {
-        ConfigProperty::Mute => config.get_mute().into(),
-        ConfigProperty::Gain => config.get_gain().into(),
-        ConfigProperty::HeadphoneVolume => config.get_headphone_volume().into(),
-        ConfigProperty::LowImpedance => config.get_low_impedance().into(),
-        ConfigProperty::VolumeSelectMode => config.get_volume_select_mode().to_string().into(),
-        ConfigProperty::MicMix => config.get_mic_mix().into(),
-    })
-}
-
-fn write_config_property(
-    config: &mut Config,
-    property: ConfigProperty,
-    value: ConfigPropertyValue,
-) -> anyhow::Result<()> {
-    match (property, value) {
-        (ConfigProperty::Mute, ConfigPropertyValue::Boolean(value)) => config.set_mute(value),
-        (ConfigProperty::Gain, ConfigPropertyValue::Float(value)) => config.set_gain(value),
-        (ConfigProperty::HeadphoneVolume, ConfigPropertyValue::Float(value)) => {
-            config.set_headphone_volume(value);
-        }
-        (ConfigProperty::LowImpedance, ConfigPropertyValue::Boolean(value)) => {
-            config.set_low_impedance(value);
-        }
-        (ConfigProperty::VolumeSelectMode, ConfigPropertyValue::String(value)) => {
-            let value = VolumeSelectMode::from_str(&value).context("invalid volume select mode")?;
-            config.set_volume_select_mode(value);
-        }
-        (ConfigProperty::MicMix, ConfigPropertyValue::Float(value)) => config.set_mic_mix(value),
-
-        _ => anyhow::bail!("unsupported property value combination"),
-    }
-
-    Ok(())
-}
-
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Args::parse();
 
     match cli.command {
         Commands::ReadConfig { property } => {
+            let property = ConfigProperty::from(property);
             let mut device = WaveXLRDevice::connect()?;
             let config = device.read::<Config>()?;
-            let value = read_config_property(&config, property)?;
+            let value = read_config_property(&config, property);
             match cli.format {
                 OutputFormat::Plain => {
                     println!("{value}")
@@ -207,6 +102,7 @@ fn main() -> anyhow::Result<()> {
             }
         }
         Commands::WriteConfig { property, value } => {
+            let property = ConfigProperty::from(property);
             let value = ConfigPropertyValue::parse_for_property(property, value)?;
             let mut device = WaveXLRDevice::connect()?;
             let mut config = device.read::<Config>()?;
@@ -230,11 +126,8 @@ fn main() -> anyhow::Result<()> {
             let mut properties: IndexMap<String, String> = IndexMap::new();
 
             for property in ConfigProperty::ALL {
-                let possible_value = property
-                    .to_possible_value()
-                    .expect("should always have a possible value");
-                let name = possible_value.get_name();
-                let value = read_config_property(&config, *property)?;
+                let name = property.name();
+                let value = read_config_property(&config, *property);
                 properties.insert(name.to_string(), value.to_string());
             }
 
