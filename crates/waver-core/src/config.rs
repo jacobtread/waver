@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, str::FromStr};
 
 use crate::{
     device::{WValue, WValueReadable, WValueWritable},
@@ -125,6 +125,33 @@ impl Display for VolumeSelectMode {
     }
 }
 
+#[derive(Debug)]
+pub struct InvalidVolumeSelectMode;
+
+impl Display for InvalidVolumeSelectMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("invalid volume select mode")
+    }
+}
+
+impl std::error::Error for InvalidVolumeSelectMode {}
+
+impl FromStr for VolumeSelectMode {
+    type Err = InvalidVolumeSelectMode;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "Gain" => VolumeSelectMode::Gain,
+            "Headphones" => VolumeSelectMode::Headphones,
+            "Mix" => VolumeSelectMode::Mix,
+            value => {
+                let value: u8 = value.parse().map_err(|_| InvalidVolumeSelectMode)?;
+                VolumeSelectMode::Unknown(value)
+            }
+        })
+    }
+}
+
 impl Config {
     fn buffer_mut(&mut self) -> &mut [u8] {
         self.buffer.buffer_mut()
@@ -187,6 +214,17 @@ impl Config {
             3 => VolumeSelectMode::Mix,
             value => VolumeSelectMode::Unknown(value),
         }
+    }
+
+    pub fn set_volume_select_mode(&mut self, value: VolumeSelectMode) {
+        let value = match value {
+            VolumeSelectMode::Gain => 1,
+            VolumeSelectMode::Headphones => 2,
+            VolumeSelectMode::Mix => 3,
+            VolumeSelectMode::Unknown(value) => value,
+        };
+
+        self.buffer.write_u8(OFFSET_VOLUME_SELECT, value);
     }
 }
 
