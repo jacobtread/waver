@@ -11,4 +11,3 @@ repository = "https://github.com/jacobtread/waver"
 [dependencies]
 rusb = "0.9.4"
 thiserror = "2.0.18"
-serde = { version = "1", features = ["derive"] }

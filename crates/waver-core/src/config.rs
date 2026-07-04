@@ -4,7 +4,6 @@ use std::{
     str::{FromStr, ParseBoolError},
 };
 
-use serde::Serialize;
 use thiserror::Error;
 
 use crate::{
@@ -110,7 +109,7 @@ const OFFSET_MIC_MIX: usize = 12;
 const OFFSET_VOLUME_SELECT: usize = 14;
 const OFFSET_LOW_IMPEDANCE: usize = 33;
 
-#[derive(Debug, PartialEq, Eq, Default, PartialOrd, Ord, Clone, Copy, Serialize)]
+#[derive(Debug, PartialEq, Eq, Default, PartialOrd, Ord, Clone, Copy)]
 pub enum VolumeSelectMode {
     #[default]
     Gain,
@@ -253,8 +252,7 @@ impl WValueWritable for Config {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ConfigProperty {
     Mute,
     Gain,
@@ -312,7 +310,7 @@ impl FromStr for ConfigProperty {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone)]
 pub enum ConfigPropertyValue {
     Float(f32),
     Boolean(bool),

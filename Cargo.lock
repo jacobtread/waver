@@ -484,7 +484,6 @@ name = "waver-core"
 version = "0.2.0"
 dependencies = [
  "rusb",
- "serde",
  "thiserror",
 ]
 

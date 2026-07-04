@@ -83,13 +83,13 @@ fn tick(
     previous_properties: &mut IndexMap<String, String>,
 ) -> Result<(), WaveError> {
     let config = device.read::<Config>()?;
-
-    let mut current_properties: IndexMap<String, String> = IndexMap::new();
-
-    for property in ConfigProperty::ALL {
-        let value = read_config_property(&config, *property);
-        current_properties.insert(property.name().to_string(), value.to_string());
-    }
+    let current_properties: IndexMap<String, String> = ConfigProperty::ALL
+        .iter()
+        .map(|property| {
+            let value = read_config_property(&config, *property);
+            (property.name().to_string(), value.to_string())
+        })
+        .collect();
 
     if properties_changed(previous_properties, &current_properties) {
         log::debug!("detected properties changed, writing new properties file");
@@ -126,24 +126,23 @@ fn apply_properties(
     log::debug!("reading device config to apply update");
     let mut config = device.read::<Config>()?;
 
-    for (property, value) in properties.iter() {
-        let property: ConfigProperty = match property.parse() {
-            Ok(value) => value,
-            Err(_) => continue,
-        };
-
-        let value = match ConfigPropertyValue::parse_for_property(property, value.to_string()) {
-            Ok(value) => value,
-            Err(error) => {
-                log::error!(
+    properties
+        .iter()
+        .filter_map(|(property, value)| {
+            let property: ConfigProperty = property.parse().ok()?;
+            let value = ConfigPropertyValue::parse_for_property(property, value.to_string())
+                .inspect_err(|error|  log::error!(
                     "value \"{value}\" of property \"{property}\" was invalid for the property type: {error}"
-                );
-                continue;
-            }
-        };
-
-        _ = write_config_property(&mut config, property, value);
-    }
+                ))
+                .ok()?;
+            Some((property, value))
+        })
+        .for_each(|(property, value)| {
+            write_config_property(&mut config, property, value)
+                // Should never occur provided that ConfigPropertyValue::parse_for_property is
+                // implemented correctly
+                .expect("invalid value property")
+        });
 
     device.write(&config)?;
     log::debug!("applied updated config to device");

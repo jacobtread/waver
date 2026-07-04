@@ -55,7 +55,7 @@ enum Commands {
 
 #[derive(Serialize)]
 pub struct ConfigValueJson {
-    value: ConfigPropertyValue,
+    value: String,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -95,7 +95,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("{value}")
                 }
                 OutputFormat::Json => {
-                    let value = ConfigValueJson { value };
+                    let value = ConfigValueJson {
+                        value: value.to_string(),
+                    };
                     let value = serde_json::to_string(&value)?;
                     println!("{value}")
                 }
@@ -114,7 +116,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("{value}")
                 }
                 OutputFormat::Json => {
-                    let value = ConfigValueJson { value };
+                    let value = ConfigValueJson {
+                        value: value.to_string(),
+                    };
                     let value = serde_json::to_string(&value)?;
                     println!("{value}")
                 }
