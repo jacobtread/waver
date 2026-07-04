@@ -12,11 +12,11 @@ This project is split up into three main parts:
 
 ## Why?
 
-Have a Wave XLR? Switched to Linux and got blasted with feedback through your microphone and headphones? Well I have
+Have a Wave XLR? Switched to Linux and got blasted with feedback through your microphone and headphones? Well I have,
 that's what this project fixes for me.
 
-By default the Linux configuration doesn't understand and save the special Wave XLR data that tells it how much it
-should mix the Headphones and Microphone audio, so in my case it decides to reset that to zero
+By default the Linux configuration doesn't understand and save the special Wave XLR data that says how much it
+should mix the Headphones and Microphone audio. In my case it decides to reset that to zero every time I reboot
 (Full feedback maximum volume, basically play the microphone as loud as you can through the headphones) and my microphone
 happens to be near my computer fans meaning when my computer would startup I'd get blasted with feedback
 
