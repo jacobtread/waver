@@ -98,8 +98,6 @@ impl WaveXLRDevice {
             bytes_read
         );
 
-        dbg!(&buffer);
-
         Ok(readable)
     }
 

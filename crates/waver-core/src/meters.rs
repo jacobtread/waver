@@ -30,7 +30,7 @@ impl MetersBuffer {
         );
 
         let mut bytes = [0u8; 4];
-        let bytes_ref = &self.buffer[offset..=offset + 1];
+        let bytes_ref = &self.buffer[offset..=offset + 3];
         bytes.copy_from_slice(bytes_ref);
         u32::from_le_bytes(bytes)
     }
@@ -55,7 +55,7 @@ impl Meters {
     }
 
     pub fn read_right(&self) -> u32 {
-        self.buffer.read_u32(1)
+        self.buffer.read_u32(4)
     }
 }
 

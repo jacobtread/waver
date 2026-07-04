@@ -1,5 +1,4 @@
 use crate::device::{WValue, WValueReadable, WValueWritable};
-use std::ffi::CStr;
 
 const BUFFER_LENGTH: usize = 51;
 
@@ -37,13 +36,7 @@ impl DeviceInfoBuffer {
             offset < BUFFER_LENGTH && offset + length < BUFFER_LENGTH,
             "offset must be within bounds of config buffer"
         );
-        &self.buffer[offset..length]
-    }
-
-    fn serial_number_raw(&self) -> anyhow::Result<&CStr> {
-        let bytes = self.read_slice(27, 47);
-        let value = CStr::from_bytes_until_nul(bytes)?;
-        Ok(value)
+        &self.buffer[offset..offset + length]
     }
 }
 
@@ -75,8 +68,10 @@ impl DeviceInfo {
     }
 
     pub fn serial_number(&self) -> anyhow::Result<String> {
-        let value = self.buffer.serial_number_raw()?;
-        Ok(value.to_string_lossy().to_string())
+        let bytes = self.buffer.read_slice(35, 14);
+        let value = String::from_utf8(bytes.to_vec())?;
+
+        Ok(value)
     }
 }
 
