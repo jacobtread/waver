@@ -1,0 +1,8 @@
+[package]
+name = "waver-cli"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+waver-core = { path = "../waver-core", version = "0.1.0" }
