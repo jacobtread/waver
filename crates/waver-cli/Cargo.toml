@@ -2,6 +2,17 @@
 name = "waver-cli"
 version = "0.1.0"
 edition = "2024"
+description = "CLI tool for controlling the Wave XLR on linux."
+readme = "../../README.md"
+license = "MIT"
+authors = ["Jacobtread <jacobtread@gmail.com>"]
+homepage = "https://github.com/jacobtread/waver"
+repository = "https://github.com/jacobtread/waver"
+
+
+[[bin]]
+name = "waver"
+path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"
