@@ -9,7 +9,7 @@ if command -v waver >/dev/null 2>&1; then
     exit 0
 fi
 
-BINARY_URL="https://github.com/jacobtread/waver/releases/download/0.1.0/waver-service-x86_64-unknown-linux-gnu.tar.xz"
+BINARY_URL="https://github.com/jacobtread/waver/releases/download/0.2.0/waver-service-x86_64-unknown-linux-gnu.tar.xz"
 curl -sL "$BINARY_URL" | sudo tar -xJ -C /usr/local/bin/ waver-service
 sudo chmod +x /usr/local/bin/waver-service
 
