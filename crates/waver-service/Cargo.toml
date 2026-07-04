@@ -1,6 +1,6 @@
 [package]
 name = "waver-service"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "Background service for storing the Wave XLR settings on linux."
 readme = "../../README.md"
@@ -15,7 +15,7 @@ repository = "https://github.com/jacobtread/waver"
 indexmap = "2.14.0"
 
 # Wave XLR device core
-waver-core = { path = "../waver-core", version = "0.1.0" }
+waver-core = { path = "../waver-core", version = "0.2.0" }
 
 # Logging
 log = "0.4.33"
