@@ -11,6 +11,12 @@ repository = "https://github.com/jacobtread/waver"
 
 
 [dependencies]
-anyhow = "1"
+# Properties map
 indexmap = "2.14.0"
+
+# Wave XLR device core
 waver-core = { path = "../waver-core", version = "0.1.0" }
+
+# Logging
+log = "0.4.33"
+env_logger = "0.11.11"

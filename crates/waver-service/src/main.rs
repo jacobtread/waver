@@ -1,5 +1,5 @@
 use indexmap::IndexMap;
-use std::{thread::sleep, time::Duration};
+use std::{process::exit, thread::sleep, time::Duration};
 use waver_core::{
     Config, ConfigProperty, ConfigPropertyValue, WaveError, WaveXLRDevice, read_config_property,
     write_config_property,
@@ -8,10 +8,25 @@ use waver_core::{
 mod config;
 mod env;
 
-fn main() -> anyhow::Result<()> {
+fn main() {
+    env_logger::init();
+
     let mut device = acquire_device();
-    let mut current_properties = config::read_properties()?;
-    apply_properties(&mut device, &current_properties)?;
+
+    log::debug!("loading initial config properties");
+    let mut current_properties = match config::read_properties() {
+        Ok(value) => value,
+        Err(error) => {
+            log::error!("failed to read initial config properties: {error}");
+            exit(1)
+        }
+    };
+
+    log::debug!("applying initial device properties");
+    if let Err(error) = apply_properties(&mut device, &current_properties) {
+        log::error!("failed to apply initial device properties: {error}");
+        exit(1)
+    };
 
     let tick_delay = env::tick_delay();
     let tick_error_delay = env::tick_error_delay();
@@ -19,9 +34,15 @@ fn main() -> anyhow::Result<()> {
     loop {
         if let Err(error) = tick(&mut device, &mut current_properties) {
             if error.is_disconnected() {
+                log::error!("device connection lost: {error}");
                 device = acquire_device();
                 continue;
             } else {
+                log::error!(
+                    "error encountered when ticking, resuming tick in {}: {}",
+                    tick_error_delay.as_millis(),
+                    error
+                );
                 sleep(tick_error_delay);
                 continue;
             }
@@ -40,12 +61,17 @@ fn acquire_device() -> WaveXLRDevice {
         let device = match WaveXLRDevice::connect() {
             Ok(value) => value,
             Err(_) => {
+                log::warn!(
+                    "failed to connect to device, retrying in {}ms",
+                    delay.as_millis()
+                );
                 sleep(delay);
                 delay = (delay * 2).min(max_delay);
                 continue;
             }
         };
 
+        log::debug!("device connection established");
         return device;
     }
 }
@@ -66,10 +92,10 @@ fn tick(
     }
 
     if properties_changed(previous_properties, &current_properties) {
-        println!("detected properties changed, writing new properties file");
+        log::debug!("detected properties changed, writing new properties file");
 
         if let Err(error) = config::write_properties(&current_properties) {
-            eprintln!("failed to write properties: {error}");
+            log::error!("failed to write properties: {error}");
         }
     }
 
@@ -97,6 +123,7 @@ fn apply_properties(
     device: &mut WaveXLRDevice,
     properties: &IndexMap<String, String>,
 ) -> Result<(), WaveError> {
+    log::debug!("reading device config to apply update");
     let mut config = device.read::<Config>()?;
 
     for (property, value) in properties.iter() {
@@ -108,8 +135,8 @@ fn apply_properties(
         let value = match ConfigPropertyValue::parse_for_property(property, value.to_string()) {
             Ok(value) => value,
             Err(error) => {
-                eprintln!(
-                    "value \"{value}\" of property {property} was invalid for the property type: {error}"
+                log::error!(
+                    "value \"{value}\" of property \"{property}\" was invalid for the property type: {error}"
                 );
                 continue;
             }
@@ -119,6 +146,7 @@ fn apply_properties(
     }
 
     device.write(&config)?;
+    log::debug!("applied updated config to device");
 
     Ok(())
 }

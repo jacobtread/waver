@@ -28,6 +28,7 @@ pub fn write_properties(properties: &IndexMap<String, String>) -> std::io::Resul
             output.push_str(key);
             output.push('=');
             output.push_str(value);
+            output.push('\n');
             output
         });
 
