@@ -1,42 +1,20 @@
-use std::{
-    fs::{File, exists},
-    io::{BufRead, BufReader},
-    thread::sleep,
-    time::Duration,
-};
-
 use indexmap::IndexMap;
+use std::{thread::sleep, time::Duration};
 use waver_core::{
     Config, ConfigProperty, ConfigPropertyValue, WaveError, WaveXLRDevice, read_config_property,
     write_config_property,
 };
 
-static CONFIG_FILE: &str = "/etc/waver.conf";
-
-const ENV_WAVER_TICK_DELAY_MS: &str = "WAVER_TICK_DELAY_MS";
-const ENV_WAVER_TICK_ERROR_DELAY_MS: &str = "WAVER_TICK_ERROR_DELAY_MS";
-
-fn tick_delay() -> Option<Duration> {
-    std::env::var(ENV_WAVER_TICK_DELAY_MS)
-        .ok()
-        .and_then(|value| value.parse::<u64>().ok())
-        .map(Duration::from_millis)
-}
-
-fn tick_error_delay() -> Option<Duration> {
-    std::env::var(ENV_WAVER_TICK_ERROR_DELAY_MS)
-        .ok()
-        .and_then(|value| value.parse::<u64>().ok())
-        .map(Duration::from_millis)
-}
+mod config;
+mod env;
 
 fn main() -> anyhow::Result<()> {
     let mut device = acquire_device();
-    let mut current_properties = read_properties()?;
+    let mut current_properties = config::read_properties()?;
     apply_properties(&mut device, &current_properties)?;
 
-    let tick_delay = tick_delay().unwrap_or(Duration::from_millis(100));
-    let tick_error_delay = tick_error_delay().unwrap_or(Duration::from_millis(500));
+    let tick_delay = env::tick_delay();
+    let tick_error_delay = env::tick_error_delay();
 
     loop {
         if let Err(error) = tick(&mut device, &mut current_properties) {
@@ -90,7 +68,7 @@ fn tick(
     if properties_changed(previous_properties, &current_properties) {
         println!("detected properties changed, writing new properties file");
 
-        if let Err(error) = write_properties(&current_properties) {
+        if let Err(error) = config::write_properties(&current_properties) {
             eprintln!("failed to write properties: {error}");
         }
     }
@@ -105,18 +83,13 @@ fn properties_changed(
     previous_properties: &IndexMap<String, String>,
     next_properties: &IndexMap<String, String>,
 ) -> bool {
-    let keys = previous_properties.keys().chain(next_properties.keys());
-
-    for key in keys {
-        let left = previous_properties.get(key);
-        let right = next_properties.get(key);
-
-        if left != right {
-            return true;
-        }
+    if previous_properties.len() != next_properties.len() {
+        return true;
     }
 
-    false
+    previous_properties
+        .iter()
+        .any(|(key, value)| next_properties.get(key) != Some(value))
 }
 
 /// Apply the provided properties onto the device config
@@ -147,47 +120,5 @@ fn apply_properties(
 
     device.write(&config)?;
 
-    Ok(())
-}
-
-/// Read the properties from the config file
-fn read_properties() -> std::io::Result<IndexMap<String, String>> {
-    if !exists(CONFIG_FILE)? {
-        return Ok(IndexMap::new());
-    }
-
-    let file = File::open(CONFIG_FILE)?;
-    let reader = BufReader::new(file);
-    let lines = reader.lines();
-
-    let mut properties = IndexMap::new();
-
-    for line in lines {
-        let line = line?;
-        if line.is_empty() {
-            continue;
-        }
-
-        let (property, value) = match line.split_once('=') {
-            Some(value) => value,
-            None => continue,
-        };
-
-        properties.insert(property.to_string(), value.to_string());
-    }
-
-    Ok(properties)
-}
-
-/// Write the properties to the config file
-fn write_properties(properties: &IndexMap<String, String>) -> std::io::Result<()> {
-    use std::fmt::Write;
-
-    let mut output = String::new();
-    for (key, value) in properties.iter() {
-        writeln!(&mut output, "{key}={value}").expect("failed to write string");
-    }
-
-    std::fs::write(CONFIG_FILE, output)?;
     Ok(())
 }

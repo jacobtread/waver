@@ -271,6 +271,15 @@ impl Display for ConfigProperty {
 }
 
 impl ConfigProperty {
+    pub const ALL: &[ConfigProperty] = &[
+        ConfigProperty::Mute,
+        ConfigProperty::Gain,
+        ConfigProperty::HeadphoneVolume,
+        ConfigProperty::LowImpedance,
+        ConfigProperty::VolumeSelectMode,
+        ConfigProperty::MicMix,
+    ];
+
     pub fn name(&self) -> &str {
         match self {
             ConfigProperty::Mute => "mute",
@@ -301,17 +310,6 @@ impl FromStr for ConfigProperty {
             _ => return Err(UnknownConfigPropertyError),
         })
     }
-}
-
-impl ConfigProperty {
-    pub const ALL: &[ConfigProperty] = &[
-        ConfigProperty::Mute,
-        ConfigProperty::Gain,
-        ConfigProperty::HeadphoneVolume,
-        ConfigProperty::LowImpedance,
-        ConfigProperty::VolumeSelectMode,
-        ConfigProperty::MicMix,
-    ];
 }
 
 #[derive(Debug, Clone, Serialize)]
