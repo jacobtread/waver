@@ -204,6 +204,7 @@ impl Config {
             .write_signed_q8_8(OFFSET_HEADPHONE_VOLUME, value);
     }
 
+    /// TODO: This offset is incorrect
     pub fn get_low_impedance(&self) -> bool {
         self.buffer.read_u8(OFFSET_LOW_IMPEDANCE) != 0
     }
